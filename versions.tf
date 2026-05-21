@@ -7,6 +7,10 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  # Remote state — all config injected via -backend-config flags in CI/CD.
+  # Local dev: terraform init -backend=false (uses local state file).
+  backend "s3" {}
 }
 
 provider "aws" {

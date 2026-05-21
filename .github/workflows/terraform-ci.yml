@@ -1,0 +1,164 @@
+name: "Terraform CI — Validate & Plan"
+
+# Triggered on PRs that touch any Terraform source or this workflow file.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "**.tfvars.example"
+      - ".github/workflows/terraform-ci.yml"
+  workflow_dispatch:
+
+# One plan per branch at a time — cancel in-flight runs on new pushes.
+concurrency:
+  group: tf-plan-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write   # post plan as PR comment
+  id-token: write        # OIDC → AssumeRoleWithWebIdentity
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job: validate
+  # fmt check + validate (no AWS credentials required)
+  # ──────────────────────────────────────────────────────────────────────────
+  validate:
+    name: "Validate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+        continue-on-error: true   # surface result in comment even on failure
+
+      - name: Terraform Validate (syntax only — no backend)
+        id: validate
+        run: terraform init -backend=false && terraform validate -no-color
+
+      - name: Fail on fmt violation
+        if: steps.fmt.outcome == 'failure'
+        run: |
+          echo "::error::Run 'terraform fmt -recursive' locally and commit the changes."
+          exit 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job: plan
+  # Authenticates via OIDC, inits remote backend, runs plan, posts comment.
+  # ──────────────────────────────────────────────────────────────────────────
+  plan:
+    name: "Plan — staging"
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: staging   # protect secrets; no approval gate needed for plan
+    env:
+      TF_IN_AUTOMATION: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+          terraform_wrapper: true   # wraps outputs for step.outputs
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-engine-infra
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=infraenginepolicies/staging/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_LOCK_TABLE }}" \
+            -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color \
+            -var="environment=staging" \
+            -var="create_network_resources=true" \
+            -var="create_api_gateway=true" \
+            -out=tfplan.binary \
+            2>&1 | tee plan_output.txt
+        continue-on-error: true
+
+      - name: Post Plan as PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('plan_output.txt', 'utf8');
+            const MAX = 60_000;
+            const plan = raw.length > MAX
+              ? raw.slice(0, MAX) + '\n\n…[output truncated — see Actions log for full plan]'
+              : raw;
+
+            const fmt   = '${{ steps.fmt.outcome }}';
+            const init  = '${{ steps.init.outcome }}';
+            const planO = '${{ steps.plan.outcome }}';
+
+            const icon  = (o) => o === 'success' ? '✅' : '❌';
+            const body  = [
+              '### 🏗️ Terraform Plan — `infraenginepolicies` / staging',
+              '',
+              `| Step | Result |`,
+              `|------|--------|`,
+              `| Format | ${icon(fmt)} \`${fmt}\` |`,
+              `| Init   | ${icon(init)} \`${init}\` |`,
+              `| Plan   | ${icon(planO)} \`${planO}\` |`,
+              '',
+              '<details><summary>📄 Show full plan</summary>',
+              '',
+              '```terraform',
+              plan,
+              '```',
+              '',
+              '</details>',
+              '',
+              `*Triggered by @${{ github.actor }} · ${{ github.sha }}*`,
+            ].join('\n');
+
+            // Delete previous bot comment (keep thread tidy)
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.type === 'Bot' && c.body.includes('infraenginepolicies')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
