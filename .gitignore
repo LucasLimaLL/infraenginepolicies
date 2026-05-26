@@ -32,3 +32,8 @@ terraform.rc
 # OS
 .DS_Store
 Thumbs.db
+
+# Cucumber BDD
+bdd/node_modules/
+bdd/reports/
+.bdd-tmp.tfplan

@@ -1,0 +1,21 @@
+{
+  "name": "infraenginepolicies-bdd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cucumber-JS BDD tests for the engine-policies Terraform infrastructure",
+  "scripts": {
+    "test": "cucumber-js",
+    "test:validation": "cucumber-js features/terraform-validation.feature",
+    "test:dynamodb": "cucumber-js features/dynamodb-resources.feature",
+    "test:secrets": "cucumber-js features/secrets-manager.feature",
+    "test:ssm": "cucumber-js features/ssm-parameters.feature",
+    "test:report": "cucumber-js --format html:reports/cucumber-report.html --format json:reports/cucumber-report.json --format summary"
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^10.8.0",
+    "@aws-sdk/client-dynamodb": "^3.620.0",
+    "@aws-sdk/client-secrets-manager": "^3.620.0",
+    "@aws-sdk/client-ssm": "^3.620.0",
+    "chai": "^4.5.0"
+  }
+}
