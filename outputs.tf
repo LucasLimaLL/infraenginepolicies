@@ -151,3 +151,58 @@ output "redis_security_group_id" {
   description = "Security group ID for ElastiCache Redis."
   value       = var.create_network_resources ? module.networking[0].redis_sg_id : "N/A (local dev)"
 }
+
+output "vpc_cidr_block" {
+  description = "VPC CIDR block. 'N/A' when create_network_resources = false."
+  value       = var.create_network_resources ? module.networking[0].vpc_cidr_block : "N/A (local dev)"
+}
+
+output "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks. Empty when create_network_resources = false."
+  value       = var.create_network_resources ? module.networking[0].public_subnet_cidrs : []
+}
+
+output "private_subnet_cidrs" {
+  description = "List of private subnet CIDR blocks."
+  value       = var.create_network_resources ? module.networking[0].private_subnet_cidrs : []
+}
+
+output "fargate_ingress_ports" {
+  description = "Inbound ports allowed on the Fargate SG."
+  value       = var.create_network_resources ? module.networking[0].fargate_ingress_ports : []
+}
+
+output "redis_ingress_source_sg_ids" {
+  description = "SG IDs allowed to reach Redis SG. Should reference Fargate SG ID."
+  value       = var.create_network_resources ? module.networking[0].redis_ingress_source_sg_ids : []
+}
+
+output "redis_ingress_cidr_blocks" {
+  description = "CIDR blocks allowed on Redis SG ingress. Should be EMPTY for security."
+  value       = var.create_network_resources ? module.networking[0].redis_ingress_cidr_blocks : []
+}
+
+output "api_gateway_name" {
+  description = "API Gateway name. 'N/A' when create_api_gateway = false."
+  value       = var.create_api_gateway ? module.api_gateway[0].api_name : "N/A (local dev)"
+}
+
+output "api_gateway_protocol" {
+  description = "API Gateway protocol type."
+  value       = var.create_api_gateway ? module.api_gateway[0].api_protocol_type : "N/A (local dev)"
+}
+
+output "api_gateway_route_key" {
+  description = "Route key configured on the API Gateway."
+  value       = var.create_api_gateway ? module.api_gateway[0].api_route_key : "N/A (local dev)"
+}
+
+output "api_gateway_payload_format" {
+  description = "Integration payload format version (must be 1.0)."
+  value       = var.create_api_gateway ? module.api_gateway[0].integration_payload_format_version : "N/A (local dev)"
+}
+
+output "api_gateway_log_retention_in_days" {
+  description = "CloudWatch log retention in days for API Gateway access logs."
+  value       = var.create_api_gateway ? module.api_gateway[0].log_retention_in_days : 0
+}

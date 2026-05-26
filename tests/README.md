@@ -19,11 +19,35 @@ infraenginepolicies/
 │   ├── dynamodb.tftest.hcl        Tabela `politicas` (PK, SK, billing, PITR, TTL)
 │   ├── secrets.tftest.hcl         Nomes prefixados, recovery_window=7
 │   ├── ssm.tftest.hcl             4 parâmetros, valores correspondem à variável
-│   ├── feature_flags.tftest.hcl   create_network_resources / create_api_gateway
+│   ├── feature_flags.tftest.hcl   Flags OFF → outputs "N/A" (local dev)
 │   ├── name_prefix.tftest.hcl     `${project}-${environment}` em todos os recursos
-│   ├── apply_localstack.tftest.hcl  E2E real com `command = apply` contra LocalStack
+│   ├── networking.tftest.hcl      CENÁRIO PROD: VPC, subnets, SGs (flags ON)
+│   ├── api_gateway.tftest.hcl     CENÁRIO PROD: HTTP API v2, rota, payload format
+│   ├── apply_localstack.tftest.hcl  E2E LocalStack (DynamoDB+Secrets+SSM apenas)
+│   ├── apply_aws.tftest.hcl       E2E AWS REAL (stack inteira, opt-in)
 │   └── README.md
 ```
+
+## Matriz de cobertura por ambiente
+
+| Teste | Local (LocalStack) | Staging/Prod (AWS) | Tipo |
+|-------|:------------------:|:------------------:|------|
+| `variables.tftest.hcl` | ✅ | ✅ | plan |
+| `dynamodb.tftest.hcl` | ✅ | ✅ | plan |
+| `secrets.tftest.hcl` | ✅ | ✅ | plan |
+| `ssm.tftest.hcl` | ✅ | ✅ | plan |
+| `feature_flags.tftest.hcl` | ✅ (flags OFF) | — | plan |
+| `name_prefix.tftest.hcl` | ✅ | ✅ | plan |
+| `networking.tftest.hcl` | — (LocalStack não emula VPC) | ✅ (flags ON) | plan |
+| `api_gateway.tftest.hcl` | — (LocalStack não emula APIGw) | ✅ (flags ON) | plan |
+| `apply_localstack.tftest.hcl` | ✅ (apply real) | — | apply |
+| `apply_aws.tftest.hcl` | — | ✅ (apply real, opt-in) | apply |
+
+Os testes plan-level dos módulos `networking` e `api_gateway` rodam mesmo sem
+AWS — eles materializam o plan com as feature flags ligadas e validam que cada
+atributo do resource reflete o input. O cenário **apply real contra AWS** está
+isolado em `apply_aws.tftest.hcl` e exige credenciais — não roda em CI por
+padrão.
 
 ## Pré-requisitos
 
@@ -60,7 +84,7 @@ terraform test
 (executa **todos** os `.tftest.hcl` em `tests/`, incluindo `apply_localstack` —
 que falhará se LocalStack não estiver rodando).
 
-### 2. Suite completa (com apply real em LocalStack)
+### 2. Cenário local com apply real em LocalStack
 
 ```bash
 # Sobe LocalStack via docker-compose do appenginepolicies
@@ -69,10 +93,31 @@ docker compose -f ../appenginepolicies/docker-compose.yml up -d localstack
 # Aguarda LocalStack ficar healthy
 until curl -s http://localhost:4566/_localstack/health | grep -q '"running"'; do sleep 1; done
 
-# Executa toda a suite
+# Executa todos os tests EXCETO apply_aws (que requer AWS real)
 terraform init -backend=false
-terraform test
+terraform test  # 'apply_aws.tftest.hcl' falha aqui — esperado
 ```
+
+### 3. Cenário prod com apply real em AWS (manual, opt-in)
+
+```bash
+# Configurar credenciais AWS (perfil ou OIDC)
+export AWS_PROFILE=engine-staging
+
+# Init com backend remoto S3 + DynamoDB lock
+terraform init \
+  -backend-config="bucket=$TF_BACKEND_BUCKET" \
+  -backend-config="key=infraenginepolicies/test/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=$TF_BACKEND_LOCK_TABLE"
+
+# Roda APENAS o teste de apply em AWS real (cria + destroi recursos)
+terraform test -filter=tests/apply_aws.tftest.hcl
+```
+
+⚠️ **Atenção**: `apply_aws.tftest.hcl` cria recursos AWS **reais**
+(VPC, API Gateway, DynamoDB, Secrets, SSM) e os destrói ao fim do `run`. Custa
+centavos por execução. Não deve rodar em PRs de CI sem aprovação manual.
 
 Após o `apply` test, os recursos ficam em LocalStack — para inspecionar via AWS CLI:
 
