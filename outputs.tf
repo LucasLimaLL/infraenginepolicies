@@ -27,6 +27,58 @@ output "dynamodb_range_key" {
   value       = module.dynamodb.range_key
 }
 
+output "dynamodb_billing_mode" {
+  description = "Billing mode (PAY_PER_REQUEST for on-demand)."
+  value       = module.dynamodb.billing_mode
+}
+
+output "dynamodb_pitr_enabled" {
+  description = "Point-in-Time Recovery enabled flag."
+  value       = module.dynamodb.pitr_enabled
+}
+
+output "dynamodb_ttl_attribute_name" {
+  description = "TTL attribute name (expiracao)."
+  value       = module.dynamodb.ttl_attribute_name
+}
+
+output "dynamodb_ttl_enabled" {
+  description = "TTL enabled flag."
+  value       = module.dynamodb.ttl_enabled
+}
+
+output "name_prefix" {
+  description = "Composed name prefix (project-environment) used for resource naming."
+  value       = local.name_prefix
+}
+
+output "secrets_redis_name" {
+  description = "Name of the Redis credentials secret."
+  value       = module.secrets.redis_secret_name
+}
+
+output "secrets_app_tokens_name" {
+  description = "Name of the app tokens secret."
+  value       = module.secrets.app_tokens_secret_name
+}
+
+output "secrets_redis_recovery_window_in_days" {
+  description = "Recovery window in days for the Redis credentials secret."
+  value       = module.secrets.redis_secret_recovery_window_in_days
+}
+
+output "ssm_default_timeout_ms_value" {
+  description = "Stored timeout value (string form)."
+  value       = module.ssm.default_timeout_ms_value
+  sensitive   = true
+}
+
+output "ssm_app_port_value" {
+  description = "Stored app port value (string form)."
+  value       = module.ssm.app_port_value
+  sensitive   = true
+}
+
 # ── Secrets Manager ───────────────────────────────────────────────────────────
 
 output "secrets_redis_arn" {
