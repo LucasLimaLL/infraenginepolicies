@@ -1,40 +1,36 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # terraform.tfvars.example
-# Copy to terraform.tfvars and fill in sensitive values.
-# terraform.tfvars is gitignored — NEVER commit it.
+#
+# DEPRECATED em favor de `environments/*.tfvars`.
+# A configuracao por ambiente agora vive em arquivos dedicados (inventory pattern):
+#
+#   environments/local.tfvars      LocalStack
+#   environments/staging.tfvars    AWS staging
+#   environments/prod.tfvars       AWS producao
+#
+# Para deploy:
+#   terraform plan  -var-file=environments/<env>.tfvars
+#   terraform apply -var-file=environments/<env>.tfvars
+#
+# Este arquivo permanece como referencia rapida do conjunto de variaveis.
+# Para sobrescrever localmente sem versionar (ex: credenciais de teste local):
+#   cp terraform.tfvars.example terraform.tfvars
+#   # editar terraform.tfvars com valores locais
+#   # terraform.tfvars esta no .gitignore
 # ─────────────────────────────────────────────────────────────────────────────
 
-project    = "engine-policies"
-aws_region = "us-east-1"
-
-# ── LOCAL DEV (LocalStack) ────────────────────────────────────────────────────
-environment              = "local"
-localstack_endpoint      = "http://localhost:4566"
-create_network_resources = false
-create_api_gateway       = false
-
-# ── STAGING / PROD (comment local block above and uncomment below) ────────────
-# environment              = "prod"
-# localstack_endpoint      = ""          # empty = real AWS
-# create_network_resources = true
-# create_api_gateway       = true
-
-# ── Application ───────────────────────────────────────────────────────────────
-app_backend_url = "http://host.docker.internal:8080"   # local
-# app_backend_url = "http://internal-alb.example.com"  # prod: ALB DNS
-
-app_port = 8080
-
-# ── Redis / ElastiCache ───────────────────────────────────────────────────────
-redis_host     = "localhost"                        # local dev Redis container
-# redis_host   = "engine-policies.xxxxx.cache.amazonaws.com"  # prod ElastiCache
-redis_port     = 6379
-redis_password = ""                                 # prod: strong password here (never commit)
-
-# ── SSM Parameters ────────────────────────────────────────────────────────────
-# Must be below the P99 SLA of 500ms. Overridden per rule via timeout_ms in DynamoDB.
-default_timeout_ms = 450
-
-# ── Networking (prod only) ────────────────────────────────────────────────────
-vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["us-east-1a", "us-east-1b"]
+# Variaveis disponiveis (defaults em variables.tf):
+#   project                  string  default "engine-policies"
+#   environment              string  default "local"     (validation: local|staging|prod)
+#   aws_region               string  default "us-east-1"
+#   localstack_endpoint      string  default "http://localhost:4566"
+#   create_network_resources bool    default false
+#   create_api_gateway       bool    default false
+#   app_backend_url          string  default "http://host.docker.internal:8080"
+#   app_port                 number  default 8080
+#   redis_host               string  default "localhost"
+#   redis_port               number  default 6379
+#   redis_password           string  default ""          (sensitive — nunca commit)
+#   default_timeout_ms       number  default 450         (validation: 0 < x < 500)
+#   vpc_cidr                 string  default "10.0.0.0/16"
+#   availability_zones       list    default ["us-east-1a", "us-east-1b"]

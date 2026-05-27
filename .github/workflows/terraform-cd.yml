@@ -73,9 +73,7 @@ jobs:
       - name: Terraform Plan
         run: |
           terraform plan -no-color \
-            -var="environment=staging" \
-            -var="create_network_resources=true" \
-            -var="create_api_gateway=true" \
+            -var-file=environments/staging.tfvars \
             -out=tfplan.binary
 
       - name: Terraform Apply
@@ -135,9 +133,7 @@ jobs:
       - name: Terraform Plan
         run: |
           terraform plan -no-color \
-            -var="environment=prod" \
-            -var="create_network_resources=true" \
-            -var="create_api_gateway=true" \
+            -var-file=environments/prod.tfvars \
             -out=tfplan.binary
 
       - name: Terraform Apply

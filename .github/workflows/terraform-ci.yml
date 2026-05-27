@@ -91,12 +91,25 @@ jobs:
         id: plan
         run: |
           terraform plan -no-color \
-            -var="environment=staging" \
-            -var="create_network_resources=true" \
-            -var="create_api_gateway=true" \
+            -var-file=environments/staging.tfvars \
             -out=tfplan.binary \
             2>&1 | tee plan_output.txt
         continue-on-error: true
+
+      - name: Terraform Test (plan-level)
+        run: |
+          terraform test \
+            -filter=tests/variables.tftest.hcl \
+            -filter=tests/dynamodb.tftest.hcl \
+            -filter=tests/secrets.tftest.hcl \
+            -filter=tests/ssm.tftest.hcl \
+            -filter=tests/feature_flags.tftest.hcl \
+            -filter=tests/name_prefix.tftest.hcl \
+            -filter=tests/networking.tftest.hcl \
+            -filter=tests/api_gateway.tftest.hcl \
+            -filter=tests/inventory_smoke.tftest.hcl
+        env:
+          TF_DISABLE_PLUGIN_TLS: "true"
 
       - name: Post Plan as PR Comment
         uses: actions/github-script@v7
